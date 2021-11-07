@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+__author__ = "TruncatedDinosour"
+__email__ = "truncateddinosour@gmail.com"
+__version__ = '0.1-pre'
+
+
 import asyncio
 import sys, os
 import git
@@ -302,6 +307,10 @@ def download(*args) -> None:
     download_with_progress(download_url, os.path.split(download_url)[1])
 
 
+def show_version(*args) -> None:
+    log(__version__, "version", Fore.GREEN)
+
+
 async def main() -> int:
     ACTIONS: dict = {
         "sync": {
@@ -346,6 +355,12 @@ async def main() -> int:
                 "repo",
                 "atom-name",
             ],
+            "is_async": False,
+        },
+        "version": {
+            "desc": "Show version and exit",
+            "func": show_version,
+            "args": [],
             "is_async": False,
         },
     }
