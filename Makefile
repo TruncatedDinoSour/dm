@@ -5,7 +5,7 @@ SHARE ?= $(HOME)/.local/share/dm
 SU ?= sudo
 
 deps:
-	python3 -m pip install -r requirements.txt
+	python3 -m pip install --upgrade --user -r requirements.txt
 
 install:
 	mkdir -p $(DESTDIR)$(BINDIR)
