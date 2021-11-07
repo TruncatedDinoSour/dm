@@ -2,7 +2,7 @@
 
 __author__ = "TruncatedDinosour"
 __email__ = "truncateddinosour@gmail.com"
-__version__ = '0.1-pre'
+__version__ = "0.1-pre"
 
 
 import asyncio
@@ -130,7 +130,6 @@ def sync(*args) -> None:
 
         repo_path = f"{get_path(CONFIG['sync']['location'])}/{name}"
 
-
         sync = {
             "git": {
                 "args": [url, repo_path],
@@ -201,7 +200,8 @@ def git_notification_daemon(*args) -> None:
             repos.read(get_path(CONFIG["repos"]["conf"]))
 
             for repo in synced_repos:
-                if repos[repo]["sync_type"] != "git": continue
+                if repos[repo]["sync_type"] != "git":
+                    continue
 
                 repo_obj = git.Repo(f"{get_path(CONFIG['sync']['location'])}/{repo}")
                 repo_obj_branch = repo_obj.active_branch.name
