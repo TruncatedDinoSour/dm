@@ -121,7 +121,7 @@ def sync(*args) -> None:
     repos.read(get_path(CONFIG["repos"]["conf"]))
 
     def sync_repo(name: str, sync_type: str, url: str) -> None:
-        log(f"Syncing {repo_name}")
+        log(f"Syncing {name}")
 
         repo_path = f"{get_path(CONFIG['sync']['location'])}/{name}"
 
