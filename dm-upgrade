@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+
+main() {
+    git clone 'https://github.com/TruncatedDinosour/dm'
+    cd dm || exit 1
+    make dm-update
+    cd ..
+    rm -rf dm
+    dm clean
+}
+
+main "$@"
+

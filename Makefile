@@ -10,9 +10,11 @@ deps:
 install:
 	mkdir -p $(DESTDIR)$(BINDIR)
 	install -Dm755 dm $(DESTDIR)$(BINDIR)
+	install -Dm755 dm-upgrade $(DESTDIR)$(BINDIR)
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/dm
+	rm -f $(DESTDIR)$(BINDIR)/dm \
+		$(DESTDIR)$(BINDIR)/dm-upgrade
 
 unshare:
 	rm -rfv "$(SHARE)"
@@ -37,6 +39,7 @@ dm-full-setup:
 	dm clean
 
 dm-update:
+	make deps
 	$(SU) make uninstall
 	$(SU) make install
 	make dm-setup

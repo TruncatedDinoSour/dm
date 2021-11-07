@@ -4,6 +4,7 @@
 
 ## Installation
 ```bash
+$ make deps
 $ make dm-full-setup
 ```
 
@@ -19,6 +20,6 @@ $ make dm-purge
 
 ## Updating
 ```bash
-$ make dm-update
+$ dm-upgrade
 ```
 
