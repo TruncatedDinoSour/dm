@@ -2,6 +2,13 @@
 
 > A utility to help you download things...
 
+## Dependencies
+- python 3
+- pip
+- dbus (optional)
+- a notification daemon (optional)
+- linux
+
 ## Installation
 ```bash
 $ make deps
