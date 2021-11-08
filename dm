@@ -229,67 +229,64 @@ def git_notification_daemon(*args) -> None:
 
 
 def search(*args):
-    check_args(args, 4, "Required arguments: data, fuzzy, sort, query")
+    check_args(args, 3, "Required arguments: data, sort, query")
 
     allowed_sort_keys = ["all", "size", "speed"]
+    allowed_data_keys = ["all", "name", "description", "url", "keywords", "protocol"]
 
     data = args[0]
-    is_fuzzy = args[1] == "true"
-    sort_key = args[2]
-    query = " ".join(args[3:])
+    sort_key = args[1]
+    query = " ".join(args[2:])
 
-    if sort_key not in allowed_sort_keys or data in allowed_sort_keys and data != "all":
+    if sort_key not in allowed_sort_keys or data not in allowed_data_keys:
         log("illegal both or either sort_key or data_key", "error", Fore.RED)
         sys.exit(1)
 
     matches = {}
 
-    for file in os.scandir(get_path(CONFIG["sync"]["location"])):
-
-        with open(f"{file.path}/REPO.json", "r") as f:
+    # TODO: fix this indentation hell
+    for repo in os.scandir(get_path(CONFIG["sync"]["location"])):
+        """Every iteration repo = full path to a reposiory"""
+        with open(f"{repo.path}/REPO.json", "r") as f:
+            """Repo_info = dict of repo info"""
             repo_info = json.load(f)
 
-        for url in os.scandir(f"{file.path}/{repo_info['urls']}"):
-            with open(url.path, "r") as f:
-                url_info = json.load(f)
+            for url_file in os.scandir(f"{repo.path}/{repo_info['urls']}"):
+                """
+                Every iteration url_file is a full path to a json file
+                containing info about a URL
+                """
+                with open(url_file.path, "r") as url_info_file:
+                    url_info = json.load(url_info_file)
+                    """ url_info is a dict of info about a specific url """
 
-        collected_data = ""
-        if data == "all":
-            for url_info_data in url_info.values():
-                collected_data += str(url_info_data)
-        else:
-            collected_data = url_info.get(data)
-            if collected_data is None:
-                log(f"Key {data} not found", "error", Fore.RED)
-                sys.exit(1)
+                    if data == "all":
+                        collected_data = " ".join(
+                            [str(info) for info in url_info.values()]
+                        )
+                    else:
+                        collected_data = str(url_info[data])
 
-            collected_data = (
-                " ".join(collected_data)
-                if isinstance(collected_data, list)
-                else collected_data
-            )
+                # NOTE: `max_l_dist=0` ??works, but what??
+                if fuzzysearch.find_near_matches(query, collected_data, max_l_dist=0):
+                    atom_name = os.path.splitext(os.path.split(url_file.path)[1])[0]
 
-        l_dist = len(collected_data) // 4 if is_fuzzy else 1
-        if fuzzysearch.find_near_matches(query, collected_data, max_l_dist=l_dist):
-            repo_name = os.path.split(file)[1]
-            if matches.get(repo_name) is None:
-                matches[repo_name] = []
+                    if repo.name not in matches:
+                        matches[repo.name] = []
 
-            if sort_key == "all":
-                sort_number = int(url_info["size"]) / int(url_info["speed"])
-            else:
-                sort_number = int(url_info[sort_key])
+                    if sort_key == "all":
+                        sort_number = url_info["size"] / url_info["speed"]
+                    else:
+                        sort_number = url_info[sort_key]
 
-            matches[repo_name].append((sort_number, os.path.split(url)[1]))
+                    matches[repo.name].append((sort_number, atom_name))
 
-    merged_data = [data for data in matches.items()]
-    merged_data.sort()
+    for repository, matches in matches.items():
+        matches.sort()
 
-    for repo, items in merged_data:
-        log(f"In repo {repo}:", "match", Fore.LIGHTGREEN_EX)
-
-        for item in items:
-            print(f"\t{os.path.splitext(item[1])[0]}")
+        log(f"Matches in repository {repository}", "match", Fore.LIGHTGREEN_EX)
+        for _, match in matches:
+            print(f"\t* {match}")
 
 
 def download(*args) -> None:
@@ -308,6 +305,7 @@ def download(*args) -> None:
 
 
 def show_version(*args) -> None:
+    del args
     log(__version__, "version", Fore.GREEN)
 
 
@@ -338,11 +336,10 @@ async def main() -> int:
             "is_async": False,
         },
         "search": {
-            "desc": "Search for a fuzzy string in a specific portion of the info file, true/false to if check for words or fuzzy strings, speed/size are the sorting keys and query is the query",
+            "desc": "Search for a fuzzy string in a specific portion of the info file, speed/size/all are the sorting keys and query is the query",
             "func": search,
             "args": [
                 "name|description|url|keywords|protocol|all",
-                "true|false",
                 "speed|size|all",
                 "query",
             ],
@@ -382,4 +379,3 @@ async def main() -> int:
 if __name__ == "__main__":
     assert main.__annotations__.get("return") is int, "main() should return an integer"
     exit(asyncio.run(main()))
-
