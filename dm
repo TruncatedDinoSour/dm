@@ -117,6 +117,15 @@ class Sync:
         sync_directories(from_location, to_location, "sync", logger=QuietLogger)
 
 
+class Download:
+    @classmethod
+    def http(cls, url: str, filename: str) -> None:
+        with DownloadProgressBar(
+            unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
+        ) as t:
+            urllib.request.urlretrieve(url, filename=filename, reporthook=t.update_to)
+
+
 # Functionality
 
 
@@ -299,9 +308,30 @@ def download(*args) -> None:
     download_file = f"{repo_path}/{urls}/{args[1]}.json"
 
     with open(download_file, "r") as f:
-        download_url = json.load(f)["url"]
+        download_info = json.load(f)
 
-    download_with_progress(download_url, os.path.split(download_url)[1])
+    protocols: dict = {
+        "https": {
+            "fn": Download.http,
+            "args": [download_info["url"], os.path.split(download_info["url"])[1]],
+        },
+        "http": {
+            "fn": Download.http,
+            "args": [download_info["url"], os.path.split(download_info["url"])[1]],
+        },
+    }
+
+    download_protocol_info = protocols.get(download_info["protocol"])
+
+    if download_protocol_info is None:
+        log(f"Unsupported protocol: {download_info['protocol']}", "error", Fore.RED)
+        sys.exit(1)
+
+    log(
+        f"Downloading {os.path.split(download_info['url'])[1]} over the {download_info['protocol']} protocol"
+    )
+    time.sleep(5)  # Give users time to think if they want to actually do it
+    download_protocol_info["fn"](*download_protocol_info["args"])
 
 
 def show_version(*args) -> None:

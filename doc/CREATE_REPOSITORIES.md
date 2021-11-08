@@ -62,8 +62,7 @@ For example
 }
 ```
 
-More protocols will be added soon, like torrents, but for now its mainly just to help users to find
-what they want.
+More protocols will be added soon, like torrents.
 
 5. Done! You can use the main repo as the example
 
