@@ -43,7 +43,7 @@ This is the hard part, this is the template for URLs json:
     "url": "HTTPS://SOME.SERVER.COM/PATH/TO/FILE.HEY",
     "keywords": ["SOME", "KEYWORDS", "TO", "HELP"],
     "protocol": "THE_URL_PROTOCOL",
-    "speed": SPEED_IN_MBPS,
+    "speed": SPEED_IN_KBPS,
     "size": SIZE_IN_B
 }
 ```
