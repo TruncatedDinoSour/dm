@@ -421,7 +421,7 @@ def download(*args) -> None:
 
             log("Be careful when you use this file", "warning", Fore.LIGHTYELLOW_EX)
 
-            if input(f"Remove {filename}? [Y/N]: ").lower() == "y":
+            if input(f"Remove {filename}? [Y/n]: ").lower() != "n":
                 log(f"Removing {filename}")
                 os.remove(filename)
 
