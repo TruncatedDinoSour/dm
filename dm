@@ -45,11 +45,11 @@ def log(s: str, header: str = "log", colour: str = Fore.LIGHTYELLOW_EX) -> None:
 
     if show_colours:
         sys.stderr.write(
-            f"{Fore.LIGHTBLUE_EX}[{colour}{header.upper()}{Fore.LIGHTBLUE_EX}]{Fore.RESET} {s.capitalize()}\n"
+            f"{Fore.LIGHTBLUE_EX}[{colour}{header.upper()}{Fore.LIGHTBLUE_EX}]{Fore.RESET} {s}\n"
         )
         return
 
-    sys.stderr.write(f"[{header.upper()}] {s.capitalize()}\n")  # Else condition
+    sys.stderr.write(f"[{header.upper()}] {s}\n")  # Else condition
 
 
 def usage(actions: dict) -> None:
