@@ -44,7 +44,12 @@ This is the hard part, this is the template for URLs json:
     "keywords": ["SOME", "KEYWORDS", "TO", "HELP"],
     "protocol": "THE_URL_PROTOCOL",
     "speed": SPEED_IN_KBPS,
-    "size": SIZE_IN_B
+    "size": SIZE_IN_B,
+    "checksums": {
+        "md5": MD%_SUJM,
+        "sha512": SHA512_SUM,
+        "sha256": SHA256_SUM
+    }
 }
 ```
 
@@ -58,7 +63,10 @@ For example
   "keywords": ["ubuntu2010", "ubuntu-desktop", "ubuntureleases", "ubuntu"],
   "protocol": "https",
   "speed": 100,
-  "size": 3116482560
+  "size": 3116482560,
+  "checksums": {
+        "sha256": "f8d3ab0faeaecb5d26628ae1aa21c9a13e0a242c381aa08157db8624d574b830"
+    }
 }
 ```
 
