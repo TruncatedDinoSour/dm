@@ -6,12 +6,14 @@ __version__ = "0.1-pre"
 
 
 import asyncio
-import sys, os
+import sys
+import os
 import git
 import shutil
 import time
 import json
 import fuzzysearch
+import hashlib
 
 import urllib.request
 
@@ -20,6 +22,7 @@ from tqdm import tqdm
 from configparser import ConfigParser
 from plyer import notification
 from colorama import Fore
+from typing import Tuple
 
 from colorama import init as colorama_init
 from dirsync import sync as sync_directories
@@ -41,11 +44,12 @@ def log(s: str, header: str = "log", colour: str = Fore.LIGHTYELLOW_EX) -> None:
     show_colours: bool = CONFIG["ui"].getboolean("show_colours")
 
     if show_colours:
-        return print(
-            f"{Fore.LIGHTBLUE_EX}[{colour}{header.upper()}{Fore.LIGHTBLUE_EX}]{Fore.RESET} {s}"
+        sys.stderr.write(
+            f"{Fore.LIGHTBLUE_EX}[{colour}{header.upper()}{Fore.LIGHTBLUE_EX}]{Fore.RESET} {s.capitalize()}\n"
         )
+        return
 
-    return print(f"[{header.upper()}] {s}")  # Else condition
+    sys.stderr.write(f"[{header.upper()}] {s.capitalize()}\n")  # Else condition
 
 
 def usage(actions: dict) -> None:
@@ -124,6 +128,47 @@ class Download:
             unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
         ) as t:
             urllib.request.urlretrieve(url, filename=filename, reporthook=t.update_to)
+
+
+class CheckChecksum:
+    @classmethod
+    def sha256(cls, filename: str, orig_sha256_hash: str) -> Tuple[bool, str]:
+        """This function calculates tha SHA256 sum of a specified file"""
+        sha256_hash = hashlib.sha256()
+
+        with open(filename, "rb") as file:
+            log(f"Calculating SHA256 hash for {filename}")
+
+            for byte_block in iter(lambda: file.read(4096), b""):
+                sha256_hash.update(byte_block)
+
+        return (sha256_hash.hexdigest() == orig_sha256_hash, sha256_hash.hexdigest())
+
+    @classmethod
+    def sha512(cls, filename: str, orig_sha512_hash: str) -> Tuple[bool, str]:
+        """This function calculates tha SHA512 sum of a specified file"""
+        sha512_hash = hashlib.sha512()
+
+        with open(filename, "rb") as file:
+            log(f"Calculating SHA512 hash for {filename}")
+
+            for byte_block in iter(lambda: file.read(4096), b""):
+                sha512_hash.update(byte_block)
+
+        return (sha512_hash.hexdigest() == orig_sha512_hash, sha512_hash.hexdigest())
+
+    @classmethod
+    def md5(cls, filename: str, orig_md5_hash: str) -> Tuple[bool, str]:
+        """This function calculates tha MD5 sum of a specified file"""
+        md5_hash = hashlib.md5()
+
+        with open(filename, "rb") as file:
+            log(f"Calculating MD5 hash for {filename}")
+
+            for byte_block in iter(lambda: file.read(4096), b""):
+                md5_hash.update(byte_block)
+
+        return (md5_hash.hexdigest() == orig_md5_hash, md5_hash.hexdigest())
 
 
 # Functionality
@@ -310,15 +355,31 @@ def download(*args) -> None:
     with open(download_file, "r") as f:
         download_info = json.load(f)
 
+    filename = os.path.split(download_info["url"])[1]
+
+    if os.path.exists(filename):
+        log(
+            f"File {filename} already exists",
+            "error",
+            Fore.RED,
+        )
+        sys.exit(1)
+
     protocols: dict = {
         "https": {
             "fn": Download.http,
-            "args": [download_info["url"], os.path.split(download_info["url"])[1]],
+            "args": [download_info["url"], filename],
         },
         "http": {
             "fn": Download.http,
-            "args": [download_info["url"], os.path.split(download_info["url"])[1]],
+            "args": [download_info["url"], filename],
         },
+    }
+
+    checksums: dict = {
+        "sha256": CheckChecksum.sha256,
+        "sha512": CheckChecksum.sha512,
+        "md5": CheckChecksum.md5,
     }
 
     download_protocol_info = protocols.get(download_info["protocol"])
@@ -327,11 +388,44 @@ def download(*args) -> None:
         log(f"Unsupported protocol: {download_info['protocol']}", "error", Fore.RED)
         sys.exit(1)
 
-    log(
-        f"Downloading {os.path.split(download_info['url'])[1]} over the {download_info['protocol']} protocol"
-    )
+    log(f"Downloading {filename} over the {download_info['protocol']} protocol")
     time.sleep(5)  # Give users time to think if they want to actually do it
     download_protocol_info["fn"](*download_protocol_info["args"])
+
+    checksum_dict = download_info.get("checksums")
+
+    if checksum_dict is None:
+        log("No checksums found", "warning", Fore.YELLOW)
+
+    for checksum_type, checksum in checksum_dict.items():
+        checker = checksums.get(checksum_type)
+
+        if checker is None:
+            log(
+                f"Checksum type {checksum_type} is not found",
+                "warning",
+                Fore.LIGHTYELLOW_EX,
+            )
+            continue
+
+        is_good_checksum, calculated_checksum = checker(filename, checksum)
+
+        if not is_good_checksum:
+            log(
+                f"{checksum_type} checksum check for {filename} failed",
+                "error",
+                Fore.RED,
+            )
+            log(f"Real checksum: {checksum}")
+            log(f"Got: {calculated_checksum}")
+
+            log("Be careful when you use this file", "warning", Fore.LIGHTYELLOW_EX)
+
+            if input(f"Remove {filename}? [Y/N]: ").lower() == "y":
+                log(f"Removing {filename}")
+                os.remove(filename)
+
+            sys.exit(1)
 
 
 def show_version(*args) -> None:

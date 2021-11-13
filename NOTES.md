@@ -1,8 +1,8 @@
 # Features I want to add
-- [  ] Checksum checking
+- [x] Checksum checking
 - [  ] URL/domain blacklisting
 - [  ] Checking download safety
-- [  ] Overwriting checking
+- [x] Overwriting checking
 - [  ] More protocols (e.g. torrents)
 - [  ] Feature masking (like blocking downloads over http)
 - [  ] More repository types (like http)
