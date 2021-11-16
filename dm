@@ -344,88 +344,92 @@ def search(*args):
 
 
 def download(*args) -> None:
-    check_args(args, 2, "Required arguments: repo, atom-name")
-    repo_path = f"{get_path(CONFIG['sync']['location'])}/{args[0]}"
+    check_args(args, 1, "Required arguments: repo@atom-name")
 
-    with open(f"{repo_path}/REPO.json") as f:
-        urls = json.load(f)["urls"]
+    for atom in args:
+        subatom, package = atom.split("@", 1)
 
-    download_file = f"{repo_path}/{urls}/{args[1]}.json"
+        repo_path = f"{get_path(CONFIG['sync']['location'])}/{subatom}"
 
-    with open(download_file, "r") as f:
-        download_info = json.load(f)
+        with open(f"{repo_path}/REPO.json") as f:
+            urls = json.load(f)["urls"]
 
-    filename = os.path.split(download_info["url"])[1]
+        download_file = f"{repo_path}/{urls}/{package}.json"
 
-    if os.path.exists(filename):
-        log(
-            f"File {filename} already exists",
-            "error",
-            Fore.RED,
-        )
-        sys.exit(1)
+        with open(download_file, "r") as f:
+            download_info = json.load(f)
 
-    protocols: dict = {
-        "https": {
-            "fn": Download.http,
-            "args": [download_info["url"], filename],
-        },
-        "http": {
-            "fn": Download.http,
-            "args": [download_info["url"], filename],
-        },
-    }
+        filename = os.path.split(download_info["url"])[1]
 
-    checksums: dict = {
-        "sha256": CheckChecksum.sha256,
-        "sha512": CheckChecksum.sha512,
-        "md5": CheckChecksum.md5,
-    }
-
-    download_protocol_info = protocols.get(download_info["protocol"])
-
-    if download_protocol_info is None:
-        log(f"Unsupported protocol: {download_info['protocol']}", "error", Fore.RED)
-        sys.exit(1)
-
-    log(f"Downloading {filename} over the {download_info['protocol']} protocol")
-    time.sleep(5)  # Give users time to think if they want to actually do it
-    download_protocol_info["fn"](*download_protocol_info["args"])
-
-    checksum_dict = download_info.get("checksums")
-
-    if checksum_dict is None:
-        log("No checksums found", "warning", Fore.YELLOW)
-
-    for checksum_type, checksum in checksum_dict.items():
-        checker = checksums.get(checksum_type)
-
-        if checker is None:
+        if os.path.exists(filename):
             log(
-                f"Checksum type {checksum_type} is not found",
-                "warning",
-                Fore.LIGHTYELLOW_EX,
-            )
-            continue
-
-        is_good_checksum, calculated_checksum = checker(filename, checksum)
-
-        if not is_good_checksum:
-            log(
-                f"{checksum_type} checksum check for {filename} failed",
+                f"File {filename} already exists",
                 "error",
                 Fore.RED,
             )
-            log(f"Real checksum: {checksum}")
-            log(f"Got: {calculated_checksum}")
-
-            log("Be careful when you use this file", "warning", Fore.LIGHTYELLOW_EX)
-
-            if input(f"Remove {filename}? [Y/n]: ").lower() != "n":
-                log(f"Removing {filename}")
-                os.remove(filename)
-
             sys.exit(1)
+
+        protocols: dict = {
+            "https": {
+                "fn": Download.http,
+                "args": [download_info["url"], filename],
+            },
+            "http": {
+                "fn": Download.http,
+                "args": [download_info["url"], filename],
+            },
+        }
+
+        checksums: dict = {
+            "sha256": CheckChecksum.sha256,
+            "sha512": CheckChecksum.sha512,
+            "md5": CheckChecksum.md5,
+        }
+
+        download_protocol_info = protocols.get(download_info["protocol"])
+
+        if download_protocol_info is None:
+            log(f"Unsupported protocol: {download_info['protocol']}", "error", Fore.RED)
+            sys.exit(1)
+
+        log(f"Downloading {filename} over the {download_info['protocol']} protocol")
+        time.sleep(5)  # Give users time to think if they want to actually do it
+        download_protocol_info["fn"](*download_protocol_info["args"])
+
+        checksum_dict = download_info.get("checksums")
+
+        if checksum_dict is None:
+            log("No checksums found", "warning", Fore.YELLOW)
+
+        for checksum_type, checksum in checksum_dict.items():
+            checker = checksums.get(checksum_type)
+
+            if checker is None:
+                log(
+                    f"Checksum type {checksum_type} is not found",
+                    "warning",
+                    Fore.LIGHTYELLOW_EX,
+                )
+                continue
+
+            is_good_checksum, calculated_checksum = checker(filename, checksum)
+
+            if not is_good_checksum:
+                log(
+                    f"{checksum_type} checksum check for {filename} failed",
+                    "error",
+                    Fore.RED,
+                )
+                log(f"Real checksum: {checksum}")
+                log(f"Got: {calculated_checksum}")
+
+                log("Be careful when you use this file", "warning", Fore.LIGHTYELLOW_EX)
+
+                if input(f"Remove {filename}? [Y/n]: ").lower() != "n":
+                    log(f"Removing {filename}")
+                    os.remove(filename)
+
+                sys.exit(1)
 
 
 def show_version(*args) -> None:
