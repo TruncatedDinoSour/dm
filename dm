@@ -477,8 +477,7 @@ async def main() -> int:
             "desc": "Download a file",
             "func": download,
             "args": [
-                "repo",
-                "atom-name",
+                "subatom@pkg",
             ],
             "is_async": False,
         },
