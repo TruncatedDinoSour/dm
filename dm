@@ -347,9 +347,9 @@ def download(*args) -> None:
     check_args(args, 1, "Required arguments: repo@atom-name")
 
     for atom in args:
-        subatom, package = atom.split("@", 1)
+        repo, package = atom.split("@", 1)
 
-        repo_path = f"{get_path(CONFIG['sync']['location'])}/{subatom}"
+        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
 
         with open(f"{repo_path}/REPO.json") as f:
             urls = json.load(f)["urls"]
@@ -477,7 +477,7 @@ async def main() -> int:
             "desc": "Download a file",
             "func": download,
             "args": [
-                "subatom@pkg",
+                "repo@file",
             ],
             "is_async": False,
         },
