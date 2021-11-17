@@ -27,7 +27,7 @@ dm-unconfig:
 	rm -rfvi $(DESTDIR)$(CONF)
 
 dm-setup:
-	-dm rm-repo main
+	-dm rm-repos main
 	dm sync
 
 

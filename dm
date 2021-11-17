@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
+"""
+DM (download manager)
+"""
 
 __author__ = "TruncatedDinosour"
 __email__ = "truncateddinosour@gmail.com"
 __version__ = "0.1-pre"
+__source__ = "https://ari-web.netlify.app/gh/dm"
 
 
-import asyncio
 import sys
 import os
 import git
@@ -29,30 +32,40 @@ from dirsync import sync as sync_directories
 
 colorama_init()
 
+# Constants
+
+FILE_ENCODING = "utf-8"
+
 # Helpers and config
 
 
-def get_path(p: str) -> str:
-    return os.path.expanduser(p)
+def get_path(path: str) -> str:
+    """Get the full path from an expandable path like ~/.config"""
+
+    return os.path.expanduser(path)
 
 
 CONFIG = ConfigParser()
 CONFIG.read(get_path("~/.config/dm/dm.ini"))
 
 
-def log(s: str, header: str = "log", colour: str = Fore.LIGHTYELLOW_EX) -> None:
+def log(msg: str, header: str = "log", colour: str = Fore.LIGHTYELLOW_EX) -> None:
+    """Show log/debug messages"""
+
     show_colours: bool = CONFIG["ui"].getboolean("show_colours")
 
     if show_colours:
         sys.stderr.write(
-            f"{Fore.LIGHTBLUE_EX}[{colour}{header.upper()}{Fore.LIGHTBLUE_EX}]{Fore.RESET} {s}\n"
+            f"{Fore.LIGHTBLUE_EX}[{colour}{header.upper()}{Fore.LIGHTBLUE_EX}]{Fore.RESET} {msg}\n"
         )
         return
 
-    sys.stderr.write(f"[{header.upper()}] {s}\n")  # Else condition
+    sys.stderr.write(f"[{header.upper()}] {msg}\n")  # Else condition
 
 
 def usage(actions: dict) -> None:
+    """Print usage in a formatted way"""
+
     for action in actions:
         log(
             f"{action} <{', '.join(actions[action]['args'])}>  --  {actions[action]['desc']}",
@@ -62,43 +75,52 @@ def usage(actions: dict) -> None:
 
 
 def send_notification(msg: str) -> None:
+    """Send a desktop notification"""
+
     notification.notify(
         "Dm notification", msg, "dm", timeout=0, ticker=f"DM notification - {msg}"
     )
 
 
 def check_args(args: tuple, count: int, msg: str) -> None:
+    """Check if the ammount of arguments is correct"""
+
     if len(args) < count:
         log(msg, "error", Fore.RED)
         sys.exit(1)
 
 
 class DownloadProgressBar(tqdm):
+    """Download progress bar object"""
+
     def update_to(self, b=1, bsize=1, tsize=None):
+        """Bar updator callback"""
+
         if tsize is not None:
             self.total = tsize
         self.update(b * bsize - self.n)
-
-
-def download_with_progress(url: str, output_path: str):
-    with DownloadProgressBar(
-        unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
-    ) as t:
-        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
 # Classes
 
 
 class QuietLogger:
+    """Remove logger messages using logging modules"""
+
     @classmethod
-    def info(*args):
-        pass
+    def info(cls, *args):
+        """Info log"""
+
+        del args
 
 
 class Sync:
+    """Sync methods and types"""
+
     @classmethod
     def git(cls, url: str, to: str) -> None:
+        """Sync repositories using git"""
+
         if os.path.exists(to):
             log(f"Hard resetting repo {to}")
             repo = git.Repo(to)
@@ -113,6 +135,8 @@ class Sync:
 
     @classmethod
     def local(cls, from_location: str, to_location: str) -> None:
+        """Locally compare and copy directories"""
+
         if not os.path.exists(to_location):
             log("creating local repository directory")
             os.mkdir(to_location)
@@ -122,8 +146,12 @@ class Sync:
 
 
 class Download:
+    """Download methods and types"""
+
     @classmethod
     def http(cls, url: str, filename: str) -> None:
+        """HTTP file downloaer"""
+
         with DownloadProgressBar(
             unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
         ) as t:
@@ -131,9 +159,12 @@ class Download:
 
 
 class CheckChecksum:
+    """Checksum calculation methods"""
+
     @classmethod
     def sha256(cls, filename: str, orig_sha256_hash: str) -> Tuple[bool, str]:
-        """This function calculates tha SHA256 sum of a specified file"""
+        """This method calculates tha SHA256 sum of a specified file"""
+
         sha256_hash = hashlib.sha256()
 
         with open(filename, "rb") as file:
@@ -146,7 +177,8 @@ class CheckChecksum:
 
     @classmethod
     def sha512(cls, filename: str, orig_sha512_hash: str) -> Tuple[bool, str]:
-        """This function calculates tha SHA512 sum of a specified file"""
+        """This method calculates tha SHA512 sum of a specified file"""
+
         sha512_hash = hashlib.sha512()
 
         with open(filename, "rb") as file:
@@ -159,7 +191,8 @@ class CheckChecksum:
 
     @classmethod
     def md5(cls, filename: str, orig_md5_hash: str) -> Tuple[bool, str]:
-        """This function calculates tha MD5 sum of a specified file"""
+        """This method calculates tha MD5 sum of a specified file"""
+
         md5_hash = hashlib.md5()
 
         with open(filename, "rb") as file:
@@ -175,16 +208,20 @@ class CheckChecksum:
 
 
 def sync(*args) -> None:
-    repo = args[0] if args else None
+    """Sync a repository / repositories"""
+
+    specified_repos = args if args else None
     repos = ConfigParser()
     repos.read(get_path(CONFIG["repos"]["conf"]))
 
     def sync_repo(name: str, sync_type: str, url: str) -> None:
+        """Sync a repository - helper"""
+
         log(f"Syncing {name}")
 
         repo_path = f"{get_path(CONFIG['sync']['location'])}/{name}"
 
-        sync = {
+        sync_types = {
             "git": {
                 "args": [url, repo_path],
                 "fn": Sync.git,
@@ -193,7 +230,7 @@ def sync(*args) -> None:
         }
 
         try:
-            fn = sync[sync_type]["fn"]
+            fn = sync_types[sync_type]["fn"]
         except KeyError:
             log(f"SyncType `{sync_type}` not found", "error", Fore.RED)
             sys.exit(1)
@@ -202,8 +239,9 @@ def sync(*args) -> None:
             *sync[sync_type]["args"]
         )  # NOTE: mypy might see it as an object when it's not
 
-    if repo is not None:
-        sync_repo(repo, repos[repo]["sync_type"], repos[repo]["location"])
+    if specified_repos is not None:
+        for repo in specified_repos:
+            sync_repo(repo, repos[repo]["sync_type"], repos[repo]["location"])
         return
 
     for repo_name in repos.sections():
@@ -212,20 +250,27 @@ def sync(*args) -> None:
         )
 
 
-def rm_repo(*args) -> None:
-    check_args(args, 1, "Required argument: repo")
+def rm_repos(*args) -> None:
+    """Remove a repository from local synced repositories"""
 
-    repo_path = f"{get_path(CONFIG['sync']['location'])}/{args[0]}"
+    check_args(args, 1, "Required argument: repo(s)")
 
-    if not os.path.exists(repo_path):
-        log(f"Repository {repo_path} does not exist", "error", Fore.RED)
-        sys.exit(1)
+    for repo in args:
+        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
 
-    log(f"Removing {repo_path}")
-    shutil.rmtree(repo_path)
+        if not os.path.exists(repo_path):
+            log(f"Repository {repo_path} does not exist", "error", Fore.RED)
+            sys.exit(1)
+
+        log(f"Removing {repo_path}")
+        shutil.rmtree(repo_path)
 
 
 def clean_repos(*args):
+    """Remove unused repositories from local FS"""
+
+    del args
+
     synced_repos = os.listdir(get_path(CONFIG["sync"]["location"]))
     current_repos = ConfigParser()
     current_repos.read(get_path(CONFIG["repos"]["conf"]))
@@ -242,47 +287,9 @@ def clean_repos(*args):
         shutil.rmtree(repo_path)
 
 
-def git_notification_daemon(*args) -> None:
-    check_args(args, 1, "Required argument: sleep_time")
-
-    time.sleep(10)  # Wait for internet connection
-
-    while True:
-        try:
-            synced_repos = os.listdir(get_path(CONFIG["sync"]["location"]))
-            repos = ConfigParser()
-            repos.read(get_path(CONFIG["repos"]["conf"]))
-
-            for repo in synced_repos:
-                if repos[repo]["sync_type"] != "git":
-                    continue
-
-                repo_obj = git.Repo(f"{get_path(CONFIG['sync']['location'])}/{repo}")
-                repo_obj_branch = repo_obj.active_branch.name
-
-                repo_obj.remotes.origin.fetch()
-                commits_behind = len(
-                    list(
-                        repo_obj.iter_commits(
-                            f"{repo_obj_branch}..origin/{repo_obj_branch}"
-                        )
-                    )
-                )
-
-                if commits_behind:
-                    send_notification(f"Repository {repo} is out of date")
-
-            time.sleep(int(args[0]))
-        except Exception as e:
-            err = str(e)
-            time.sleep(5)  # Wait for the session to start
-
-            send_notification(err)
-            log(err, "error", Fore.RED)
-            sys.exit(1)
-
-
 def search(*args):
+    """Search for a file in repositories"""
+
     check_args(args, 3, "Required arguments: data, sort, query")
 
     allowed_sort_keys = ["all", "size", "speed"]
@@ -301,8 +308,10 @@ def search(*args):
     # TODO: fix this indentation hell
     for repo in os.scandir(get_path(CONFIG["sync"]["location"])):
         """Every iteration repo = full path to a reposiory"""
+
         with open(f"{repo.path}/REPO.json", "r") as f:
             """Repo_info = dict of repo info"""
+
             repo_info = json.load(f)
 
             for url_file in os.scandir(f"{repo.path}/{repo_info['urls']}"):
@@ -310,9 +319,11 @@ def search(*args):
                 Every iteration url_file is a full path to a json file
                 containing info about a URL
                 """
-                with open(url_file.path, "r") as url_info_file:
-                    url_info = json.load(url_info_file)
+
+                with open(url_file.path, "r", encoding=FILE_ENCODING) as url_info_file:
                     """ url_info is a dict of info about a specific url """
+
+                    url_info = json.load(url_info_file)
 
                     if data == "all":
                         collected_data = " ".join(
@@ -344,19 +355,21 @@ def search(*args):
 
 
 def download(*args) -> None:
-    check_args(args, 1, "Required arguments: repo@atom-name")
+    """Download files from repositories"""
+
+    check_args(args, 1, "Required argument: repo@atom-name")
 
     for atom in args:
         repo, package = atom.split("@", 1)
 
         repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
 
-        with open(f"{repo_path}/REPO.json") as f:
+        with open(f"{repo_path}/REPO.json", "r", encoding=FILE_ENCODING) as f:
             urls = json.load(f)["urls"]
 
         download_file = f"{repo_path}/{urls}/{package}.json"
 
-        with open(download_file, "r") as f:
+        with open(download_file, "r", encoding=FILE_ENCODING) as f:
             download_info = json.load(f)
 
         filename = os.path.split(download_info["url"])[1]
@@ -433,35 +446,30 @@ def download(*args) -> None:
 
 
 def show_version(*args) -> None:
+    """Show and print the version on DM"""
+
     del args
     log(__version__, "version", Fore.GREEN)
 
 
-async def main() -> int:
+def main() -> int:
+    """Main function"""
+
     ACTIONS: dict = {
         "sync": {
             "desc": "Download and sync repositories",
             "func": sync,
-            "args": ["repository"],
-            "is_async": False,
+            "args": ["repositor(y/ies)"],
         },
-        "rm-repo": {
+        "rm-repos": {
             "desc": "Remove a repository from synced repsitories",
-            "func": rm_repo,
-            "args": ["repository"],
-            "is_async": False,
+            "func": rm_repos,
+            "args": ["repositor(y/ies)"],
         },
         "clean": {
             "desc": "Clean repositories that are not in repos.ini anymore",
             "func": clean_repos,
             "args": [],
-            "is_async": False,
-        },
-        "git-notification-daemon": {
-            "desc": "Check if local repositories are out of date from remote ones in the background, send updates as notifications",
-            "func": git_notification_daemon,
-            "args": ["sleep_time"],
-            "is_async": False,
         },
         "search": {
             "desc": "Search for a fuzzy string in a specific portion of the info file, speed/size/all are the sorting keys and query is the query",
@@ -471,38 +479,32 @@ async def main() -> int:
                 "speed|size|all",
                 "query",
             ],
-            "is_async": False,
         },
         "download": {
-            "desc": "Download a file",
+            "desc": "Download files",
             "func": download,
             "args": [
-                "repo@file",
+                "repo@file ...",
             ],
-            "is_async": False,
         },
         "version": {
             "desc": "Show version and exit",
             "func": show_version,
             "args": [],
-            "is_async": False,
         },
     }
 
     try:
-        fn, fn_async = ACTIONS[sys.argv[1]]["func"], ACTIONS[sys.argv[1]]["is_async"]
+        fn = ACTIONS[sys.argv[1]]["func"]
     except (KeyError, IndexError):
         usage(ACTIONS)
         return 1
 
-    if fn_async:
-        await fn(*sys.argv[2:])
-    else:
-        fn(*sys.argv[2:])
+    fn(*sys.argv[2:])
 
     return 0
 
 
 if __name__ == "__main__":
     assert main.__annotations__.get("return") is int, "main() should return an integer"
-    exit(asyncio.run(main()))
+    sys.exit(main())
