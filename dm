@@ -158,66 +158,6 @@ class Download:
             urllib.request.urlretrieve(url, filename=filename, reporthook=t.update_to)
 
 
-class CheckChecksum:
-    """Checksum calculation methods"""
-
-    @classmethod
-    def sha256(cls, filename: str, orig_sha256_hash: str) -> Tuple[bool, str]:
-        """This method calculates tha SHA256 sum of a specified file"""
-
-        sha256_hash = hashlib.sha256()
-
-        with open(filename, "rb") as file:
-            log(f"Calculating SHA256 hash for {filename}")
-
-            for byte_block in iter(lambda: file.read(4096), b""):
-                sha256_hash.update(byte_block)
-
-        return (sha256_hash.hexdigest() == orig_sha256_hash, sha256_hash.hexdigest())
-
-    @classmethod
-    def sha512(cls, filename: str, orig_sha512_hash: str) -> Tuple[bool, str]:
-        """This method calculates tha SHA512 sum of a specified file"""
-
-        sha512_hash = hashlib.sha512()
-
-        with open(filename, "rb") as file:
-            log(f"Calculating SHA512 hash for {filename}")
-
-            for byte_block in iter(lambda: file.read(4096), b""):
-                sha512_hash.update(byte_block)
-
-        return (sha512_hash.hexdigest() == orig_sha512_hash, sha512_hash.hexdigest())
-
-    @classmethod
-    def md5(cls, filename: str, orig_md5_hash: str) -> Tuple[bool, str]:
-        """This method calculates tha MD5 sum of a specified file"""
-
-        md5_hash = hashlib.md5()
-
-        with open(filename, "rb") as file:
-            log(f"Calculating MD5 hash for {filename}")
-
-            for byte_block in iter(lambda: file.read(4096), b""):
-                md5_hash.update(byte_block)
-
-        return (md5_hash.hexdigest() == orig_md5_hash, md5_hash.hexdigest())
-
-    @classmethod
-    def sha1(cls, filename: str, orig_sha1_hash: str) -> Tuple[bool, str]:
-        """This method calculates tha SHA1 sum of a specified file"""
-
-        sha1_hash = hashlib.sha1()
-
-        with open(filename, "rb") as file:
-            log(f"Calculating SHA1 hash for {filename}")
-
-            for byte_block in iter(lambda: file.read(4096), b""):
-                sha1_hash.update(byte_block)
-
-        return (sha1_hash.hexdigest() == orig_sha1_hash, sha1_hash.hexdigest())
-
-
 # Functionality
 
 
@@ -370,6 +310,30 @@ def search(*args):
             print(f"\t* {match}")
 
 
+def verify_checksum(
+    checksum_type: str, filename: str, orig_hash: str
+) -> Tuple[bool, str]:
+    """This calculates and verifies a checksum of a file"""
+
+    if checksum_type not in hashlib.algorithms_available:
+        log(
+            f"Checksum type {checksum_type} is not found",
+            "warning",
+            Fore.LIGHTYELLOW_EX,
+        )
+
+        return (True, "(not found)")
+
+    hash_algo = getattr(hashlib, checksum_type)()
+
+    with open(filename, "rb") as file:
+        log(f"Calculating {checksum_type.upper()} hash for {filename}")
+        for byte_block in iter(lambda: file.read(2048), b""):
+            hash_algo.update(byte_block)
+
+    return (hash_algo.hexdigest() == orig_hash, hash_algo.hexdigest())
+
+
 def download(*args) -> None:
     """Download files from repositories"""
 
@@ -409,13 +373,6 @@ def download(*args) -> None:
             },
         }
 
-        checksums: dict = {
-            "sha256": CheckChecksum.sha256,
-            "sha512": CheckChecksum.sha512,
-            "md5": CheckChecksum.md5,
-            "sha1": CheckChecksum.sha1,
-        }
-
         download_protocol_info = protocols.get(download_info["protocol"])
 
         if download_protocol_info is None:
@@ -432,17 +389,9 @@ def download(*args) -> None:
             log("No checksums found", "warning", Fore.YELLOW)
 
         for checksum_type, checksum in checksum_dict.items():
-            checker = checksums.get(checksum_type)
-
-            if checker is None:
-                log(
-                    f"Checksum type {checksum_type} is not found",
-                    "warning",
-                    Fore.LIGHTYELLOW_EX,
-                )
-                continue
-
-            is_good_checksum, calculated_checksum = checker(filename, checksum)
+            is_good_checksum, calculated_checksum = verify_checksum(
+                checksum_type, filename, checksum
+            )
 
             if not is_good_checksum:
                 log(
