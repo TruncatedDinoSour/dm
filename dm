@@ -297,7 +297,7 @@ def search(*args):
 
     data = args[0]
     sort_key = args[1]
-    query = " ".join(args[2:])
+    query = " ".join(args[2:]).lower()
 
     if sort_key not in allowed_sort_keys or data not in allowed_data_keys:
         log("illegal both or either sort_key or data_key", "error", Fore.RED)
@@ -331,6 +331,8 @@ def search(*args):
                         )
                     else:
                         collected_data = str(url_info[data])
+
+                    collected_data = collected_data.lower()
 
                 # NOTE: `max_l_dist=0` ??works, but what??
                 if fuzzysearch.find_near_matches(query, collected_data, max_l_dist=0):
