@@ -203,6 +203,20 @@ class CheckChecksum:
 
         return (md5_hash.hexdigest() == orig_md5_hash, md5_hash.hexdigest())
 
+    @classmethod
+    def sha1(cls, filename: str, orig_sha1_hash: str) -> Tuple[bool, str]:
+        """This method calculates tha SHA1 sum of a specified file"""
+
+        sha1_hash = hashlib.sha1()
+
+        with open(filename, "rb") as file:
+            log(f"Calculating SHA1 hash for {filename}")
+
+            for byte_block in iter(lambda: file.read(4096), b""):
+                sha1_hash.update(byte_block)
+
+        return (sha1_hash.hexdigest() == orig_sha1_hash, sha1_hash.hexdigest())
+
 
 # Functionality
 
@@ -321,7 +335,7 @@ def search(*args):
                 """
 
                 with open(url_file.path, "r", encoding=FILE_ENCODING) as url_info_file:
-                    """ url_info is a dict of info about a specific url """
+                    """url_info is a dict of info about a specific url"""
 
                     url_info = json.load(url_info_file)
 
@@ -399,6 +413,7 @@ def download(*args) -> None:
             "sha256": CheckChecksum.sha256,
             "sha512": CheckChecksum.sha512,
             "md5": CheckChecksum.md5,
+            "sha1": CheckChecksum.sha1,
         }
 
         download_protocol_info = protocols.get(download_info["protocol"])
