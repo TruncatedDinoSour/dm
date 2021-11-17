@@ -101,6 +101,33 @@ class DownloadProgressBar(tqdm):
         self.update(b * bsize - self.n)
 
 
+def verify_checksum(
+    checksum_type: str, filename: str, orig_hash: str
+) -> Tuple[bool, str]:
+    """This calculates and verifies a checksum of a file"""
+
+    if (
+        checksum_type not in hashlib.algorithms_available
+        or CONFIG.getboolean("hash_ignore", checksum_type, fallback=False)
+    ):
+        log(
+            f"Checksum type {checksum_type} is not found",
+            "warning",
+            Fore.LIGHTYELLOW_EX,
+        )
+
+        return (True, "")
+
+    hash_algo = getattr(hashlib, checksum_type)()
+
+    with open(filename, "rb") as file:
+        log(f"Calculating {checksum_type.upper()} hash for {filename}")
+        for byte_block in iter(lambda: file.read(2048), b""):
+            hash_algo.update(byte_block)
+
+    return (hash_algo.hexdigest() == orig_hash, hash_algo.hexdigest())
+
+
 # Classes
 
 
@@ -310,44 +337,20 @@ def search(*args):
             print(f"\t* {match}")
 
 
-def verify_checksum(
-    checksum_type: str, filename: str, orig_hash: str
-) -> Tuple[bool, str]:
-    """This calculates and verifies a checksum of a file"""
-
-    if checksum_type not in hashlib.algorithms_available:
-        log(
-            f"Checksum type {checksum_type} is not found",
-            "warning",
-            Fore.LIGHTYELLOW_EX,
-        )
-
-        return (True, "(not found)")
-
-    hash_algo = getattr(hashlib, checksum_type)()
-
-    with open(filename, "rb") as file:
-        log(f"Calculating {checksum_type.upper()} hash for {filename}")
-        for byte_block in iter(lambda: file.read(2048), b""):
-            hash_algo.update(byte_block)
-
-    return (hash_algo.hexdigest() == orig_hash, hash_algo.hexdigest())
-
-
 def download(*args) -> None:
     """Download files from repositories"""
 
     check_args(args, 1, "Required argument: repo@atom-name")
 
     for atom in args:
-        repo, package = atom.split("@", 1)
+        repo, name = atom.split("@", 1)
 
         repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
 
         with open(f"{repo_path}/REPO.json", "r", encoding=FILE_ENCODING) as f:
             urls = json.load(f)["urls"]
 
-        download_file = f"{repo_path}/{urls}/{package}.json"
+        download_file = f"{repo_path}/{urls}/{name}.json"
 
         with open(download_file, "r", encoding=FILE_ENCODING) as f:
             download_info = json.load(f)
@@ -418,6 +421,68 @@ def show_version(*args) -> None:
     log(__version__, "version", Fore.GREEN)
 
 
+def show_info(*args) -> None:
+    """Show info about an atom"""
+    check_args(args, 2, "Required arguments: is_json, atom")
+
+    is_json = args[0] == "true"
+
+    for atom in args[1:]:
+        repo, name = atom.split("@", 1)
+
+        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
+
+        with open(f"{repo_path}/REPO.json", "r", encoding=FILE_ENCODING) as f:
+            urls = json.load(f)["urls"]
+
+        download_file = f"{repo_path}/{urls}/{name}.json"
+
+        with open(download_file, "r", encoding="utf-8") as file:
+            print(f"\n{name}:")
+
+            if is_json:
+                for line in file:
+                    print(line, end="")
+                continue
+
+            url_info = json.load(file)
+
+            for info_name, value in url_info.items():
+                log(f"{info_name} = {value}", "info", Fore.LIGHTCYAN_EX)
+
+
+def atomise(*args) -> None:
+    """Helps you create atoms"""
+
+    check_args(args, 2, "Required arguments: input_file, output_atom")
+
+    full_path_in, full_path_out = get_path(args[0]), get_path(args[1])
+    if not os.path.exists(full_path_in) or os.path.exists(full_path_out):
+        log(f"Invalid arguments: {full_path_in}, {full_path_out}", "error", Fore.RED)
+        sys.exit(1)
+
+    ATOM = {
+        "name": input("Name: "),
+        "description": input("Desctoption: "),
+        "url": input("URL: "),
+        "keywords": input("Keywords (seprate by ','): ").split(","),
+        "protocol": input("Protocol: "),
+        "speed": float(input("Speed (KbPS): ")),
+        "size": os.path.getsize(full_path_in),
+        "checksums": {},
+    }
+
+    for checksum_type in hashlib.algorithms_guaranteed:
+        checksum = verify_checksum(checksum_type, full_path_in, "")[1]
+
+        if checksum:
+            ATOM["checksums"][checksum_type] = checksum
+
+    with open(full_path_out, "w", encoding=FILE_ENCODING) as file:
+        file.write(json.dumps(ATOM, indent=4))
+        log("Configuration written", "done", Fore.LIGHTGREEN_EX)
+
+
 def main() -> int:
     """Main function"""
 
@@ -457,6 +522,16 @@ def main() -> int:
             "desc": "Show version and exit",
             "func": show_version,
             "args": [],
+        },
+        "info": {
+            "desc": "Show info about an atom",
+            "func": show_info,
+            "args": ["true|false", "repo@file ..."],
+        },
+        "atomise": {
+            "desc": "A utility to help you create atoms",
+            "func": atomise,
+            "args": ["file", "outfile"],
         },
     }
 

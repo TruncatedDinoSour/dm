@@ -30,3 +30,8 @@ $ make dm-purge
 $ dm-upgrade
 ```
 
+## Updating (reset)
+```bash
+$ dm-upgrade full
+```
+

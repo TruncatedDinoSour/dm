@@ -3,7 +3,14 @@
 main() {
     git clone 'https://github.com/TruncatedDinosour/dm'
     cd dm || exit 1
-    make dm-update
+
+    if [ "$1" != "full" ]; then
+        make dm-update
+    else
+        make deps
+        make dm-full-setup
+    fi
+
     cd ..
     rm -rf dm
     dm clean
