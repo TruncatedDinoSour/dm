@@ -226,7 +226,7 @@ def sync(*args) -> None:
                 "args": [url, repo_path],
                 "fn": Sync.git,
             },
-            "local": {"args": [url, repo_path], "fn": Sync.local},
+            "local": {"args": [get_path(url), repo_path], "fn": Sync.local},
         }
 
         try:
