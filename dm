@@ -236,7 +236,7 @@ def sync(*args) -> None:
             sys.exit(1)
 
         fn(
-            *sync[sync_type]["args"]
+            *sync_types[sync_type]["args"]
         )  # NOTE: mypy might see it as an object when it's not
 
     if specified_repos is not None:
