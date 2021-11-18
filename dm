@@ -17,15 +17,16 @@ import time
 import json
 import fuzzysearch
 import hashlib
+import tldextract
 
 import urllib.request
+from urllib.parse import urlparse
 
 from tqdm import tqdm
 
 from configparser import ConfigParser
-from plyer import notification
 from colorama import Fore
-from typing import Tuple
+from typing import Tuple, Dict, Set, Any
 
 from colorama import init as colorama_init
 from dirsync import sync as sync_directories
@@ -74,14 +75,6 @@ def usage(actions: dict) -> None:
         )
 
 
-def send_notification(msg: str) -> None:
-    """Send a desktop notification"""
-
-    notification.notify(
-        "Dm notification", msg, "dm", timeout=0, ticker=f"DM notification - {msg}"
-    )
-
-
 def check_args(args: tuple, count: int, msg: str) -> None:
     """Check if the ammount of arguments is correct"""
 
@@ -90,25 +83,13 @@ def check_args(args: tuple, count: int, msg: str) -> None:
         sys.exit(1)
 
 
-class DownloadProgressBar(tqdm):
-    """Download progress bar object"""
-
-    def update_to(self, b=1, bsize=1, tsize=None):
-        """Bar updator callback"""
-
-        if tsize is not None:
-            self.total = tsize
-        self.update(b * bsize - self.n)
-
-
 def verify_checksum(
     checksum_type: str, filename: str, orig_hash: str
 ) -> Tuple[bool, str]:
     """This calculates and verifies a checksum of a file"""
 
-    if (
-        checksum_type not in hashlib.algorithms_available
-        or CONFIG.getboolean("hash_ignore", checksum_type, fallback=False)
+    if checksum_type not in hashlib.algorithms_available or CONFIG.getboolean(
+        "hash_ignore", checksum_type, fallback=False
     ):
         log(
             f"Checksum type {checksum_type} is not found",
@@ -128,7 +109,55 @@ def verify_checksum(
     return (hash_algo.hexdigest() == orig_hash, hash_algo.hexdigest())
 
 
+def features_of(download_json: Dict[str, Any]) -> Dict[str, Dict[str, Set[str]]]:
+    """Get and return features of a given atom"""
+
+    features = {"domain": {}, "features": set()}
+
+    download_url = download_json.get("url")
+
+    if download is None:
+        features["features"].add("download_protocol_empty")
+    else:
+        parsed_url, parsed_domain = urlparse(download_url), tldextract.extract(
+            download_url
+        )
+
+        """
+        do not repeat yourself
+        do not repeat yourself
+        do not repeat yourself
+        oops
+        """
+
+        features["features"].add(f"download_protocol_{parsed_url.scheme}")
+        features["features"].add(f"download_protocol_{download_json['protocol']}")
+        features["features"].add(
+            f"download_subdomain_{parsed_domain.subdomain.split('.', 1)[0]}"
+        )
+        features["features"].add(f"download_tld_{parsed_domain.suffix}")
+        features["features"].add(
+            f"download_filename_{os.path.split(parsed_url.path)[1]}"
+        )
+        features["domain"]["domain"] = ".".join(
+            (parsed_domain.subdomain, parsed_domain.registered_domain)
+        )
+
+    return features
+
+
 # Classes
+
+
+class DownloadProgressBar(tqdm):
+    """Download progress bar object"""
+
+    def update_to(self, b=1, bsize=1, tsize=None):
+        """Bar updator callback"""
+
+        if tsize is not None:
+            self.total = tsize
+        self.update(b * bsize - self.n)
 
 
 class QuietLogger:
@@ -355,7 +384,32 @@ def download(*args) -> None:
         with open(download_file, "r", encoding=FILE_ENCODING) as f:
             download_info = json.load(f)
 
+        features = features_of(download_info)
         filename = os.path.split(download_info["url"])[1]
+
+        for masked_url in CONFIG["domain_ignore"]:
+            is_masked_global = CONFIG["domain_ignore"].getboolean(
+                masked_url, fallback=None
+            )
+
+            if is_masked_global is None:
+                continue
+
+            if is_masked_global and fuzzysearch.find_near_matches(
+                masked_url, features["domain"]["domain"], max_l_dist=1
+            ):
+                log(f"Globally masked url: {masked_url}", "error", Fore.RED)
+                sys.exit(1)
+            elif not is_masked_global and features["domain"]["domain"] == masked_url:
+                log(f"Masked url: {masked_url}", "error", Fore.RED)
+                sys.exit(1)
+
+        for masked_feature in CONFIG["mask"]:
+            if masked_feature in features["features"]:
+                log(
+                    f"{name} ({filename}) masked by {masked_feature}", "error", Fore.RED
+                )
+                sys.exit(1)
 
         if os.path.exists(filename):
             log(
@@ -387,8 +441,9 @@ def download(*args) -> None:
         download_protocol_info["fn"](*download_protocol_info["args"])
 
         checksum_dict = download_info.get("checksums")
+        checksum_dict = checksum_dict if checksum_dict else {}
 
-        if checksum_dict is None:
+        if not checksum_dict:
             log("No checksums found", "warning", Fore.YELLOW)
 
         for checksum_type, checksum in checksum_dict.items():
@@ -437,7 +492,7 @@ def show_info(*args) -> None:
 
         download_file = f"{repo_path}/{urls}/{name}.json"
 
-        with open(download_file, "r", encoding="utf-8") as file:
+        with open(download_file, "r", encoding=FILE_ENCODING) as file:
             print(f"\n{name}:")
 
             if is_json:

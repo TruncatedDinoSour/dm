@@ -4,7 +4,7 @@
 - [  ] Checking download safety
 - [x] Overwriting checking
 - [  ] More protocols (e.g. torrents)
-- [  ] Feature masking (like blocking downloads over http)
+- [x] Feature masking (like blocking downloads over http)
 - [  ] More repository types (like http)
 - [  ] Fully remote repositories
 - [  ] Modules/add-ons

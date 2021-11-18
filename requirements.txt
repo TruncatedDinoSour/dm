@@ -1,10 +1,9 @@
 configparser
 colorama
 GitPython
-plyer
-dbus-python
 dirsync
 fuzzysearch
 tqdm
 asyncio
+tldextract
 
