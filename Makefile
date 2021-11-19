@@ -50,3 +50,9 @@ dm-purge:
 	make dm-unconfig
 	make unshare
 
+
+git:
+	git add -A
+	git commit -S -m "update @ $(shell date)"
+	git push -u origin main
+

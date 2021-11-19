@@ -1,6 +1,6 @@
 # Features I want to add
 - [x] Checksum checking
-- [  ] URL/domain blacklisting
+- [x] URL/domain blacklisting
 - [  ] Checking download safety
 - [x] Overwriting checking
 - [  ] More protocols (e.g. torrents)
