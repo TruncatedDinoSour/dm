@@ -6,4 +6,5 @@ fuzzysearch
 tqdm
 asyncio
 tldextract
+python-libtorrent-bin
 

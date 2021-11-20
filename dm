@@ -18,6 +18,8 @@ import json
 import fuzzysearch
 import hashlib
 import tldextract
+import random
+import libtorrent as lt
 
 import urllib.request
 from urllib.parse import urlparse
@@ -205,13 +207,90 @@ class Download:
     """Download methods and types"""
 
     @classmethod
-    def http(cls, url: str, filename: str) -> None:
+    def http(cls, url: str, filename: str) -> str:
         """HTTP file downloaer"""
 
         with DownloadProgressBar(
             unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
         ) as t:
             urllib.request.urlretrieve(url, filename=filename, reporthook=t.update_to)
+
+        return filename
+
+    @classmethod
+    def torrent(cls, url: str, checksums: Dict[str, str]) -> None:
+        """Torrent file downloaer"""
+
+        time.sleep(random.randint(0, 3))  # Minimise colisions
+
+        torrent_file = f"/tmp/dm_torrent_{random.randint(1, 80_000_000_000)}.torrent"
+
+        log(f"Downloading torrent file {torrent_file}")
+        with DownloadProgressBar(
+            unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
+        ) as t:
+            urllib.request.urlretrieve(
+                url, filename=torrent_file, reporthook=t.update_to
+            )
+
+        if checksums:
+            for checksum_type, checksum in checksums.items():
+                is_good_checksum, calculated_checksum = verify_checksum(
+                    checksum_type, torrent_file, checksum
+                )
+
+                if not is_good_checksum:
+                    log(
+                        f"Checksum for {torrent_file} was missmatched",
+                        "error",
+                        Fore.RED,
+                    )
+                    log(f"Calculated hash: {calculated_checksum}")
+                    log(f"Supplied hash: {checksum}")
+
+                    if input("Keep going [y/N]: ").lower() != "y":
+                        log(f"Removing {torrent_file}")
+                        os.remove(torrent_file)
+                        sys.exit(1)
+        else:
+            log("No torrent checksums found", "warning", Fore.LIGHTYELLOW_EX)
+            if input("Keep going [y/N]: ").lower() != "y":
+                log(f"Removing {torrent_file}")
+                os.remove(torrent_file)
+                sys.exit()
+
+        ses = lt.session({"listen_interfaces": "0.0.0.0:6881"})
+
+        info = lt.torrent_info(torrent_file)
+        torrent = ses.add_torrent({"ti": info, "save_path": "."})
+        torrent_status = torrent.status()
+
+        log(f"Starting downloading {torrent_status.name}")
+        time.sleep(2)
+
+        with DownloadProgressBar(
+            unit="B", unit_scale=True, miniters=1, desc=torrent.status().name
+        ) as progress_bar:
+            while not torrent_status.is_seeding:
+                torrent_status = torrent.status()
+
+                progress_bar.update_to(
+                    b=torrent_status.total_download,
+                    bsize=torrent_status.progress,
+                    tsize=torrent_status.total_wanted,
+                )
+
+                alerts = ses.pop_alerts()
+                for alert in alerts:
+                    if alert.category() & lt.alert.category_t.error_notification:
+                        log(str(alert), "alert", Fore.LIGHTMAGENTA_EX)
+
+                time.sleep(1)
+
+        log(f"Removing {torrent_file}")
+        os.remove(torrent_file)
+
+        return torrent_status.name
 
 
 # Functionality
@@ -428,6 +507,10 @@ def download(*args) -> None:
                 "fn": Download.http,
                 "args": [download_info["url"], filename],
             },
+            "torrent": {
+                "fn": Download.torrent,
+                "args": [download_info["url"], download_info.get("torrent_checksums")],
+            },
         }
 
         download_protocol_info = protocols.get(download_info["protocol"])
@@ -438,7 +521,9 @@ def download(*args) -> None:
 
         log(f"Downloading {filename} over the {download_info['protocol']} protocol")
         time.sleep(5)  # Give users time to think if they want to actually do it
-        download_protocol_info["fn"](*download_protocol_info["args"])
+        downloaded_filename = download_protocol_info["fn"](
+            *download_protocol_info["args"]
+        )
 
         checksum_dict = download_info.get("checksums")
         checksum_dict = checksum_dict if checksum_dict else {}
@@ -448,12 +533,12 @@ def download(*args) -> None:
 
         for checksum_type, checksum in checksum_dict.items():
             is_good_checksum, calculated_checksum = verify_checksum(
-                checksum_type, filename, checksum
+                checksum_type, downloaded_filename, checksum
             )
 
             if not is_good_checksum:
                 log(
-                    f"{checksum_type} checksum check for {filename} failed",
+                    f"{checksum_type} checksum check for {downloaded_filename} failed",
                     "error",
                     Fore.RED,
                 )
@@ -462,8 +547,8 @@ def download(*args) -> None:
 
                 log("Be careful when you use this file", "warning", Fore.LIGHTYELLOW_EX)
 
-                if input(f"Remove {filename}? [Y/n]: ").lower() != "n":
-                    log(f"Removing {filename}")
+                if input(f"Remove {downloaded_filename}? [Y/n]: ").lower() != "n":
+                    log(f"Removing {downloaded_filename}")
                     os.remove(filename)
 
                 sys.exit(1)
