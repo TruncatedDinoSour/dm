@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+set -e
+
 main() {
     git clone 'https://github.com/TruncatedDinosour/dm'
     cd dm || exit 1

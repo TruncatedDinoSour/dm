@@ -722,7 +722,7 @@ def main() -> int:
             "func": show_info,
             "args": ["true|false", "repo@file ..."],
         },
-        "atomise": {
+        "atomise-file": {
             "desc": "A utility to help you create atoms",
             "func": atomise,
             "args": ["file", "outfile"],
