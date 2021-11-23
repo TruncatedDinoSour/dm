@@ -8,6 +8,7 @@
 - [  ] More repository types (like http)
 - [  ] Fully remote repositories
 - [  ] Modules/add-ons
+- [  ] Rewrite it with better optimisation and order
 
 # Maybe features I want to add
 - [  ] Rewrite it in C/C++

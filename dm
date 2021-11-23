@@ -37,8 +37,6 @@ colorama_init()
 
 # Constants
 
-FILE_ENCODING = "utf-8"
-
 IGNORE_VALIDITY_CHECK = {"protocol": {"torrent"}}
 
 # Helpers and config
@@ -50,8 +48,26 @@ def get_path(path: str) -> str:
     return os.path.expanduser(path)
 
 
+def get_options(from_key: str, config: ConfigParser) -> Dict[str, Set[str]]:
+    final = {}
+
+    for option in config[from_key]:
+        name, value = option.split(".", 1)
+        if not final.get(name):
+            final[name] = set()
+        final[name].add(value)
+
+    return final
+
+
 CONFIG = ConfigParser()
 CONFIG.read(get_path("~/.config/dm/dm.ini"))
+
+
+# Constants
+
+FILE_ENCODING = CONFIG.get("core", "file_encoding")
+EXTRA_OPTIONS = get_options("extra", CONFIG)
 
 
 def log(msg: str, header: str = "log", colour: str = Fore.LIGHTYELLOW_EX) -> None:
@@ -147,11 +163,14 @@ def features_of(download_json: Dict[str, Any]) -> Dict[str, Dict[str, Set[str]]]
             (parsed_domain.subdomain, parsed_domain.registered_domain)
         )
 
+        ignore_protocols = EXTRA_OPTIONS.get("bypass_protocol")
+        ignore_protocols = ignore_protocols if ignore_protocols else {}
+
         if (
             download_json["protocol"] != parsed_url.scheme
-            and download_json["protocol"] not in IGNORE_VALIDITY_CHECK["protocol"]
+            and download_json["protocol"] not in ignore_protocols
         ):
-            features["features"].add("download_misleading_protocol")
+            features["features"].add("download_misleading")
 
     return features
 
@@ -324,11 +343,11 @@ class Download:
 
         if branch is None:
             log(
-                f"Using branch `{CONFIG['protocols']['git_default_branch']}`",
+                f"Using branch `{CONFIG.get('protocols', 'git_default_branch')}`",
                 "warning",
                 Fore.LIGHTYELLOW_EX,
             )
-            branch = CONFIG["protocols"]["git_default_branch"]
+            branch = CONFIG.get("protocols", "git_default_branch")
 
         git.Repo.clone_from(
             repo_url,
@@ -346,14 +365,14 @@ def sync(*args) -> None:
 
     specified_repos = args if args else None
     repos = ConfigParser()
-    repos.read(get_path(CONFIG["repos"]["conf"]))
+    repos.read(get_path(CONFIG.get("repos", "conf")))
 
     def sync_repo(name: str, sync_type: str, url: str) -> None:
         """Sync a repository - helper"""
 
         log(f"Syncing {name}")
 
-        repo_path = f"{get_path(CONFIG['sync']['location'])}/{name}"
+        repo_path = f"{get_path(CONFIG.get('sync', 'location'))}/{name}"
 
         sync_types = {
             "git": {
@@ -390,7 +409,7 @@ def rm_repos(*args) -> None:
     check_args(args, 1, "Required argument: repo(s)")
 
     for repo in args:
-        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
+        repo_path = f"{get_path(CONFIG.get('sync', 'location'))}/{repo}"
 
         if not os.path.exists(repo_path):
             log(f"Repository {repo_path} does not exist", "error", Fore.RED)
@@ -405,9 +424,9 @@ def clean_repos(*args):
 
     del args
 
-    synced_repos = os.listdir(get_path(CONFIG["sync"]["location"]))
+    synced_repos = os.listdir(get_path(get_path(CONFIG.get("sync", "location"))))
     current_repos = ConfigParser()
-    current_repos.read(get_path(CONFIG["repos"]["conf"]))
+    current_repos.read(get_path(CONFIG.get("repos", "conf")))
 
     for repo in current_repos.sections():
         try:
@@ -416,7 +435,7 @@ def clean_repos(*args):
             log(f"{repo} not in synced repos", "warning", Fore.YELLOW)
 
     for repo in synced_repos:
-        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
+        repo_path = f"{get_path(CONFIG.get('sync', 'location'))}/{repo}"
         log(f"Removing {repo_path}")
         shutil.rmtree(repo_path)
 
@@ -440,7 +459,7 @@ def search(*args):
     matches = {}
 
     # TODO: fix this indentation hell
-    for repo in os.scandir(get_path(CONFIG["sync"]["location"])):
+    for repo in os.scandir(get_path(CONFIG.get("sync", "location"))):
         """Every iteration repo = full path to a reposiory"""
 
         with open(f"{repo.path}/REPO.json", "r") as f:
@@ -498,7 +517,7 @@ def download(*args) -> None:
     for atom in args:
         repo, name = atom.split("@", 1)
 
-        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
+        repo_path = f"{get_path(CONFIG.get('sync', 'location'))}/{repo}"
 
         with open(f"{repo_path}/REPO.json", "r", encoding=FILE_ENCODING) as f:
             urls = json.load(f)["urls"]
@@ -624,7 +643,7 @@ def show_info(*args) -> None:
     for atom in args[1:]:
         repo, name = atom.split("@", 1)
 
-        repo_path = f"{get_path(CONFIG['sync']['location'])}/{repo}"
+        repo_path = f"{get_path(CONFIG.get('sync', 'location'))}/{repo}"
 
         with open(f"{repo_path}/REPO.json", "r", encoding=FILE_ENCODING) as f:
             urls = json.load(f)["urls"]
