@@ -1,7 +1,7 @@
 # Features I want to add
 - [x] Checksum checking
 - [x] URL/domain blacklisting
-- [?] Checking download safety [DOUBTS: privacy and cost of the virustotal API]
+- [x] Checking download safety (Semi implemented and only for URLs (mask.download_misleading))
 - [x] Overwriting checking
 - [x] More protocols (e.g. torrents)
 - [x] Feature masking (like blocking downloads over http)

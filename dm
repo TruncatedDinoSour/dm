@@ -39,6 +39,8 @@ colorama_init()
 
 FILE_ENCODING = "utf-8"
 
+IGNORE_VALIDITY_CHECK = {"protocol": {"torrent"}}
+
 # Helpers and config
 
 
@@ -55,7 +57,7 @@ CONFIG.read(get_path("~/.config/dm/dm.ini"))
 def log(msg: str, header: str = "log", colour: str = Fore.LIGHTYELLOW_EX) -> None:
     """Show log/debug messages"""
 
-    show_colours: bool = CONFIG["ui"].getboolean("show_colours")
+    show_colours: bool = CONFIG.getboolean("ui", "show_colours")
 
     if show_colours:
         sys.stderr.write(
@@ -145,6 +147,12 @@ def features_of(download_json: Dict[str, Any]) -> Dict[str, Dict[str, Set[str]]]
             (parsed_domain.subdomain, parsed_domain.registered_domain)
         )
 
+        if (
+            download_json["protocol"] != parsed_url.scheme
+            and download_json["protocol"] not in IGNORE_VALIDITY_CHECK["protocol"]
+        ):
+            features["features"].add("download_misleading_protocol")
+
     return features
 
 
@@ -159,7 +167,25 @@ class DownloadProgressBar(tqdm):
 
         if tsize is not None:
             self.total = tsize
+
         self.update(b * bsize - self.n)
+
+
+class RemoteDownloadProgressBar(git.RemoteProgress):
+    """Remote (gitpython) progress class"""
+
+    def __init__(self, remote_name: str):
+        super().__init__()
+        self.remote_name = remote_name
+        self.pbar = tqdm()
+
+    def update(self, op_code, cur_count, max_count=None, message=""):
+        self.pbar.total = max_count
+        self.pbar.n = cur_count
+        self.pbar.refresh()
+        self.pbar.desc = f"Cloning {self.remote_name}"
+
+        del message, op_code
 
 
 class QuietLogger:
@@ -208,7 +234,7 @@ class Download:
 
     @classmethod
     def http(cls, url: str, filename: str) -> str:
-        """HTTP file downloaer"""
+        """HTTP(S) file downloaer"""
 
         with DownloadProgressBar(
             unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
@@ -223,7 +249,7 @@ class Download:
 
         time.sleep(random.randint(0, 3))  # Minimise colisions
 
-        torrent_file = f"/tmp/dm_torrent_{random.randint(1, 80_000_000_000)}.torrent"
+        torrent_file = f"/tmp/dm_torrent_{random.randint(1, 100_000_000_000)}.torrent"
 
         log(f"Downloading torrent file {torrent_file}")
         with DownloadProgressBar(
@@ -258,11 +284,11 @@ class Download:
                 log(f"Removing {torrent_file}")
                 os.remove(torrent_file)
                 sys.exit()
-
         ses = lt.session({"listen_interfaces": "0.0.0.0:6881"})
 
         info = lt.torrent_info(torrent_file)
         torrent = ses.add_torrent({"ti": info, "save_path": "."})
+
         torrent_status = torrent.status()
 
         log(f"Starting downloading {torrent_status.name}")
@@ -291,6 +317,25 @@ class Download:
         os.remove(torrent_file)
 
         return torrent_status.name
+
+    @classmethod
+    def git(cls, filename: str, repo_url: str, branch: str = None) -> None:
+        """Clone a git repository"""
+
+        if branch is None:
+            log(
+                f"Using branch `{CONFIG['protocols']['git_default_branch']}`",
+                "warning",
+                Fore.LIGHTYELLOW_EX,
+            )
+            branch = CONFIG["protocols"]["git_default_branch"]
+
+        git.Repo.clone_from(
+            repo_url,
+            filename,
+            branch=branch,
+            progress=RemoteDownloadProgressBar("/".join(repo_url.split("/")[-2:])),
+        )
 
 
 # Functionality
@@ -511,6 +556,10 @@ def download(*args) -> None:
                 "fn": Download.torrent,
                 "args": [download_info["url"], download_info.get("torrent_checksums")],
             },
+            "git": {
+                "fn": Download.git,
+                "args": [filename, download_info["url"], download_info.get("branch")],
+            },
         }
 
         download_protocol_info = protocols.get(download_info["protocol"])
@@ -528,30 +577,35 @@ def download(*args) -> None:
         checksum_dict = download_info.get("checksums")
         checksum_dict = checksum_dict if checksum_dict else {}
 
-        if not checksum_dict:
-            log("No checksums found", "warning", Fore.YELLOW)
-
-        for checksum_type, checksum in checksum_dict.items():
-            is_good_checksum, calculated_checksum = verify_checksum(
-                checksum_type, downloaded_filename, checksum
-            )
-
-            if not is_good_checksum:
-                log(
-                    f"{checksum_type} checksum check for {downloaded_filename} failed",
-                    "error",
-                    Fore.RED,
+        if not checksum_dict or checksum_dict == "ignore":
+            if checksum_dict != "ignore":
+                log("No checksums found", "warning", Fore.YELLOW)
+        else:
+            for checksum_type, checksum in checksum_dict.items():
+                is_good_checksum, calculated_checksum = verify_checksum(
+                    checksum_type, downloaded_filename, checksum
                 )
-                log(f"Real checksum: {checksum}")
-                log(f"Got: {calculated_checksum}")
 
-                log("Be careful when you use this file", "warning", Fore.LIGHTYELLOW_EX)
+                if not is_good_checksum:
+                    log(
+                        f"{checksum_type} checksum check for {downloaded_filename} failed",
+                        "error",
+                        Fore.RED,
+                    )
+                    log(f"Real checksum: {checksum}")
+                    log(f"Got: {calculated_checksum}")
 
-                if input(f"Remove {downloaded_filename}? [Y/n]: ").lower() != "n":
-                    log(f"Removing {downloaded_filename}")
-                    os.remove(filename)
+                    log(
+                        "Be careful when you use this file",
+                        "warning",
+                        Fore.LIGHTYELLOW_EX,
+                    )
 
-                sys.exit(1)
+                    if input(f"Remove {downloaded_filename}? [Y/n]: ").lower() != "n":
+                        log(f"Removing {downloaded_filename}")
+                        os.remove(filename)
+
+                    sys.exit(1)
 
 
 def show_version(*args) -> None:

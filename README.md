@@ -5,8 +5,7 @@
 ## Dependencies
 - python 3
 - pip
-- dbus (optional)
-- a notification daemon (optional)
+- GNU make
 - linux
 
 ## Installation
